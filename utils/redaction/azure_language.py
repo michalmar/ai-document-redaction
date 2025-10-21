@@ -56,12 +56,16 @@ class AzureLanguageStrategy(RedactionStrategy):
             # Split into chunks
             chunks = split_into_chunks(document_text, effective_max)
             
+            # Filter out empty chunks (Azure Language service rejects empty text)
+            non_empty_chunks = [(idx, chunk) for idx, chunk in enumerate(chunks) if chunk.strip()]
+            logger.debug(f"Processing {len(non_empty_chunks)} non-empty chunks out of {len(chunks)} total chunks")
+            
             # Process chunks with retry logic
             redacted_chunks = []
             total_entities = 0
             entity_categories = {}
             
-            for chunk_idx, chunk in enumerate(chunks):
+            for chunk_idx, chunk in non_empty_chunks:
                 success, response, error_msg = await retry_with_backoff(
                     self._redact_chunk_inner,
                     chunk,

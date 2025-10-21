@@ -84,7 +84,13 @@ class AzureOpenAIStrategy(RedactionStrategy):
             
             # Split into chunks if needed (use larger chunk size for LLM)
             chunks = split_into_chunks(document_text, self.config.max_chunk_size_openai)
-            logger.info(f"Document {file_path} split into {len(chunks)} chunk(s) for processing.")
+            
+            # Filter out empty chunks (avoid unnecessary API calls and token costs)
+            non_empty_chunks = [(idx, chunk) for idx, chunk in enumerate(chunks) if chunk.strip()]
+            logger.info(
+                f"Document {file_path} split into {len(chunks)} chunk(s), "
+                f"processing {len(non_empty_chunks)} non-empty chunk(s)."
+            )
             
             # Process chunks with retry logic
             redacted_chunks = []
@@ -93,7 +99,7 @@ class AzureOpenAIStrategy(RedactionStrategy):
             chunk_completion_tokens = 0
             entity_categories_all = {}
             
-            for chunk_idx, chunk in enumerate(chunks):
+            for chunk_idx, chunk in non_empty_chunks:
                 success, result, error_msg = await retry_with_backoff(
                     self._redact_chunk_inner,
                     chunk,
