@@ -129,7 +129,8 @@ async def run_conversion_stage(
                 # Create conversion tasks
                 tasks = []
                 for file, relative_path in batch:
-                    output_file = temp_dir / relative_path.with_suffix(".md")
+                    # Preserve original filename with extension, then add .md
+                    output_file = temp_dir / (str(relative_path) + ".md")
                     tasks.append(convert_document(str(file), str(output_file), doc_client))
                 
                 # Execute batch
