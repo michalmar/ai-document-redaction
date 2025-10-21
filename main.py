@@ -397,8 +397,8 @@ Environment variables required:
 
         metrics = asyncio.run(execute_pipeline(
             storage_config if storage_config else args.input_dir,
-            # For local, use provided output_dir; for azure_blob, use output_prefix (may be empty)
-            args.output_dir if args.storage_mode == "local" else args.output_prefix,
+            # For local, use provided output_dir; for azure_blob, use output_prefix from parsed container
+            args.output_dir if args.storage_mode == "local" else (output_prefix if storage_config else ""),
             conversion_config,
             redaction_config,
             validation_config,
