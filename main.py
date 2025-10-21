@@ -188,29 +188,17 @@ Environment variables required:
         "--input-container",
         dest="input_container",
         default=None,
-        help="Azure input container name (required for azure_blob mode)"
+        help="Azure input container name or 'container/folder' path (required for azure_blob mode)"
     )
 
     parser.add_argument(
         "--output-container",
         dest="output_container",
         default=None,
-        help="Azure output container name (required for azure_blob mode)"
+        help="Azure output container name or 'container/folder' path (required for azure_blob mode)"
     )
 
-    parser.add_argument(
-        "--input-prefix",
-        dest="input_prefix",
-        default="",
-        help="Prefix inside input container to process (optional)"
-    )
 
-    parser.add_argument(
-        "--output-prefix",
-        dest="output_prefix",
-        default="",
-        help="Prefix inside output container to write results (optional)"
-    )
     
     args = parser.parse_args()
     
@@ -232,8 +220,18 @@ Environment variables required:
         logger.info("="*70)
         logger.info("DOCUMENT ANONYMIZATION PIPELINE")
         logger.info("="*70)
-        logger.info(f"Input directory: {args.input_dir}")
-        logger.info(f"Output directory: {args.output_dir}")
+        
+        # Display input/output info based on storage mode
+        if args.storage_mode == "azure_blob":
+            logger.info(f"Storage mode: Azure Blob Storage")
+            logger.info(f"Storage account: {args.storage_account}")
+            logger.info(f"Input: {args.input_container}")
+            logger.info(f"Output: {args.output_container}")
+        else:
+            logger.info(f"Storage mode: Local filesystem")
+            logger.info(f"Input directory: {args.input_dir}")
+            logger.info(f"Output directory: {args.output_dir}")
+        
         logger.info(f"Batch size: {args.batch_size}")
         logger.info(f"Language: {args.language}")
         logger.info(f"Redaction strategy: {args.redaction_strategy}")
@@ -327,16 +325,26 @@ Environment variables required:
             if args.storage_mode == "azure_blob":
                 if not all([args.storage_account, args.output_container]):
                     raise ValueError("--storage-account and --output-container are required to clear checkpoint in azure_blob mode")
+                
+                # Parse container/folder from output_container
+                def parse_container_path(path: str) -> tuple[str, str]:
+                    parts = path.split('/', 1)
+                    container = parts[0]
+                    prefix = parts[1] if len(parts) > 1 else ""
+                    return container, prefix
+                
+                output_container, output_prefix = parse_container_path(args.output_container)
+                
                 account_url = f"https://{args.storage_account}.blob.core.windows.net"
                 adapter = create_storage_adapter({
                     "mode": "azure_blob",
                     "account_url": account_url,
-                    "container": args.output_container,
+                    "container": output_container,
                     "max_concurrency": args.batch_size
                 })
                 # Delete checkpoint blob
                 from utils.checkpoint import CHECKPOINT_FILENAME
-                blob_name = CHECKPOINT_FILENAME if not args.output_prefix else f"{args.output_prefix.rstrip('/')}/{CHECKPOINT_FILENAME}"
+                blob_name = CHECKPOINT_FILENAME if not output_prefix else f"{output_prefix.rstrip('/')}/{CHECKPOINT_FILENAME}"
                 try:
                     # adapter is a storage adapter with async methods - run in event loop
                     async def _delete():
@@ -364,14 +372,26 @@ Environment variables required:
                 raise ValueError(
                     "When using azure_blob storage_mode, you must provide --storage-account, --input-container and --output-container"
                 )
+            
+            # Parse container/folder from input_container and output_container
+            # Format: "container" or "container/folder" or "container/folder/subfolder"
+            def parse_container_path(path: str) -> tuple[str, str]:
+                parts = path.split('/', 1)
+                container = parts[0]
+                prefix = parts[1] if len(parts) > 1 else ""
+                return container, prefix
+            
+            input_container, input_prefix = parse_container_path(args.input_container)
+            output_container, output_prefix = parse_container_path(args.output_container)
+            
             account_url = f"https://{args.storage_account}.blob.core.windows.net"
             storage_config = {
                 "mode": "azure_blob",
                 "account_url": account_url,
-                "input_container": args.input_container,
-                "output_container": args.output_container,
-                "input_prefix": args.input_prefix,
-                "output_prefix": args.output_prefix,
+                "input_container": input_container,
+                "output_container": output_container,
+                "input_prefix": input_prefix,
+                "output_prefix": output_prefix,
                 "max_concurrency": args.batch_size
             }
 
