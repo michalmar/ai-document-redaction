@@ -1,0 +1,9 @@
+azure-ai-documentintelligence
+aiohttp
+python-dotenv
+azure-ai-textanalytics
+openai
+markdown
+weasyprint
+azure-identity
+azure-storage-blob
