@@ -35,6 +35,7 @@ utils/redaction/
    - Migrated existing Azure AI Language logic
    - Returns entity categories in metadata
    - Fast and cost-effective
+  - Robust chunking: paragraphs longer than the configured chunk size are now split further to guarantee no single request exceeds the Azure Language document limits (5120 text elements). The strategy uses a conservative effective chunk size (default capped at 4800 chars) to provide a safety margin.
 
 2. **AzureOpenAIStrategy** (`azure_openai.py`):
    - LLM-based redaction with custom system prompt

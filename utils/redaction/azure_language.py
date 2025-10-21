@@ -49,8 +49,12 @@ class AzureLanguageStrategy(RedactionStrategy):
             # Read document
             document_text = Path(file_path).read_text(encoding="utf-8")
             
-            # Split into chunks if needed
-            chunks = split_into_chunks(document_text, self.config.max_chunk_size)
+            # Compute effective chunk size for Azure Language service to avoid "text elements" limits
+            # Azure Language currently limits documents to 5120 text elements; use a conservative cap (e.g., 4800)
+            effective_max = min(self.config.max_chunk_size, 4800)
+            logger.debug(f"Using effective chunk size for Azure Language: {effective_max} chars")
+            # Split into chunks
+            chunks = split_into_chunks(document_text, effective_max)
             
             # Process chunks with retry logic
             redacted_chunks = []
