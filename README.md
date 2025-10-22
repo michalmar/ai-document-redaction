@@ -15,7 +15,8 @@ This project provides an example document anonymization pipeline built with a mo
    - `conversion.py` - Document to Markdown conversion (Azure Document Intelligence)
    - `redaction/` - PII detection and redaction with multiple strategies:
      - `azure_language.py` - Azure AI Language strategy
-     - `azure_openai.py` - Azure OpenAI LLM strategy
+     - `azure_openai.py` - Azure OpenAI full LLM redaction strategy
+     - `azure_openai_fast.py` - Azure OpenAI fast extraction + replacement strategy
      - `validation.py` - Optional LLM-based validation
    - `pipeline.py` - Pipeline orchestration logic
    - `metrics.py` - Performance tracking and reporting
@@ -107,6 +108,12 @@ python main.py ./input ./output
 # With Azure OpenAI strategy for redaction
 python main.py ./input ./output --redaction-strategy azure_openai
 
+# With Azure OpenAI Fast strategy (speed optimized)
+python main.py ./input ./output --redaction-strategy azure_openai_fast
+
+# With entity logging for azure_openai_fast (creates .ENTITIES.log files)
+python main.py ./input ./output --redaction-strategy azure_openai_fast --enable-entity-logging
+
 # With validation enabled
 python main.py ./input ./output --validate
 
@@ -126,7 +133,8 @@ python main.py ./documents ./anonymized \
 - `output_dir` - Directory for final anonymized documents
 - `--batch-size` - Number of documents to process concurrently (default: 5)
 - `--language` - Language code for PII detection: `en` (English), `cs` (Czech), `de` (German), etc. (default: `en`)
-- `--redaction-strategy` - Redaction method: `azure_language` (default) or `azure_openai`
+- `--redaction-strategy` - Redaction method: `azure_language` (default), `azure_openai`, or `azure_openai_fast`
+- `--enable-entity-logging` - Enable entity extraction logging for `azure_openai_fast` (creates `.ENTITIES.log` files in `output/log/`)
 - `--validate` - Enable optional Stage 3: LLM-based validation for remaining PII
 - `--export-pdf` - Enable optional Stage 4: Export anonymized files to PDF format
 - `--report-file` - Custom path for CSV report (default: `<output_dir>/pipeline_report.csv`)
@@ -167,10 +175,47 @@ Fast, cost-effective PII detection using Azure's specialized service:
 python main.py ./input ./output --redaction-strategy azure_language
 ```
 
+**Best for:** Production workloads, common PII types, cost efficiency
+
 #### Azure OpenAI
-Context-aware LLM-based redaction with token usage tracking:
+Context-aware LLM-based full redaction with token usage tracking:
 ```bash
 python main.py ./input ./output --redaction-strategy azure_openai
+```
+
+**Best for:** Complex documents, context-sensitive PII, maximum accuracy
+
+#### Azure OpenAI Fast (NEW)
+Speed-optimized strategy using LLM for entity extraction + Python replacement:
+```bash
+python main.py ./input ./output --redaction-strategy azure_openai_fast
+
+# With entity logging (creates .ENTITIES.log files for analysis)
+python main.py ./input ./output --redaction-strategy azure_openai_fast --enable-entity-logging
+```
+
+**Best for:** Large document sets, structured content, cost optimization
+
+**Features:**
+- 60-80% cheaper than full LLM redaction (reduced completion tokens)
+- 50-70% faster execution
+- Two-phase approach: LLM identifies PII, Python performs replacement
+- Optional entity logging for debugging and auditing
+- Exact string matching (may miss variations)
+
+**Entity Logging:**
+When enabled with `--enable-entity-logging`, creates detailed logs showing all extracted PII entities:
+```
+output/
+├── log/                              ← Entity extraction logs
+│   ├── folder1/
+│   │   └── file1.ENTITIES.log       ← Shows all PII found in file1
+│   └── folder2/
+│       └── file2.ENTITIES.log
+├── folder1/
+│   └── file1.md                      ← Redacted output
+└── folder2/
+    └── file2.md
 ```
 
 See `utils/redaction/README.md` for detailed strategy comparison.
@@ -213,7 +258,7 @@ Configuration dataclasses encapsulate service settings:
 - **ValidationConfig** - Optional validation settings
 
 **Factory Function** creates the appropriate strategy:
-- `create_redaction_strategy(config)` → `AzureLanguageStrategy` or `AzureOpenAIStrategy`
+- `create_redaction_strategy(config)` → `AzureLanguageStrategy`, `AzureOpenAIStrategy`, or `AzureOpenAIFastStrategy`
 
 ### Pipeline Stages
 
@@ -227,7 +272,10 @@ Configuration dataclasses encapsulate service settings:
 **Stage 2: PII Redaction** (`utils/redaction/`)
 - Processes converted Markdown files using selected strategy
 - **Azure Language Strategy**: Fast, specialized PII detection service
-- **Azure OpenAI Strategy**: Context-aware LLM with token tracking
+- **Azure OpenAI Strategy**: Context-aware LLM with full document redaction and token tracking
+- **Azure OpenAI Fast Strategy**: Speed-optimized LLM entity extraction + Python replacement
+  - Optional entity logging: creates `.ENTITIES.log` files showing all extracted PII
+  - Logs placed in `output/log/` with mirrored folder structure
 - Handles large documents by chunking (5000 character safe limit)
 - Outputs final anonymized documents to the target directory
 - Tracks entity counts, categories, and token usage
@@ -392,7 +440,8 @@ Refer to [Azure AI Language documentation](https://learn.microsoft.com/en-us/azu
 │   │   ├── config.py        # Configuration dataclasses
 │   │   ├── factory.py       # Strategy factory
 │   │   ├── azure_language.py    # Azure Language strategy
-│   │   ├── azure_openai.py      # Azure OpenAI strategy
+│   │   ├── azure_openai.py      # Azure OpenAI full LLM redaction
+│   │   ├── azure_openai_fast.py # Azure OpenAI fast extraction + replacement
 │   │   ├── validation.py        # LLM-based validation
 │   │   └── README.md        # Strategy documentation
 │   ├── pipeline.py           # Pipeline orchestration logic

@@ -106,9 +106,9 @@ Environment variables required:
     parser.add_argument(
         "--redaction-strategy",
         dest="redaction_strategy",
-        choices=["azure_language", "azure_openai"],
+        choices=["azure_language", "azure_openai", "azure_openai_fast"],
         default="azure_language",
-        help="PII redaction strategy (default: azure_language). 'azure_openai' uses LLM-based redaction."
+        help="PII redaction strategy (default: azure_language). 'azure_openai' uses full LLM redaction. 'azure_openai_fast' uses LLM extraction + Python replacement (faster, cheaper)."
     )
     
     parser.add_argument(
@@ -116,6 +116,13 @@ Environment variables required:
         dest="validate",
         action="store_true",
         help="Enable optional Stage 3: LLM-based validation of redacted documents for remaining PII"
+    )
+    
+    parser.add_argument(
+        "--enable-entity-logging",
+        dest="enable_entity_logging",
+        action="store_true",
+        help="Enable entity extraction logging for azure_openai_fast strategy (creates .ENTITIES.log files)"
     )
     
     parser.add_argument(
@@ -301,7 +308,8 @@ Environment variables required:
             language_api_key=lang_key,
             openai_endpoint=openai_endpoint,
             openai_api_key=openai_key,
-            openai_deployment=openai_deployment
+            openai_deployment=openai_deployment,
+            enable_entity_logging=args.enable_entity_logging
         )
         
         validation_config = ValidationConfig(

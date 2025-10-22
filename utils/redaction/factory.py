@@ -4,6 +4,7 @@ from .base import RedactionStrategy
 from .config import RedactionConfig
 from .azure_language import AzureLanguageStrategy
 from .azure_openai import AzureOpenAIStrategy
+from .azure_openai_fast import AzureOpenAIFastStrategy
 
 
 def create_redaction_strategy(config: RedactionConfig) -> RedactionStrategy:
@@ -25,8 +26,10 @@ def create_redaction_strategy(config: RedactionConfig) -> RedactionStrategy:
         return AzureLanguageStrategy(config)
     elif config.strategy_type == "azure_openai":
         return AzureOpenAIStrategy(config)
+    elif config.strategy_type == "azure_openai_fast":
+        return AzureOpenAIFastStrategy(config)
     else:
         raise ValueError(
             f"Unknown strategy_type: {config.strategy_type}. "
-            f"Supported: 'azure_language', 'azure_openai'"
+            f"Supported: 'azure_language', 'azure_openai', 'azure_openai_fast'"
         )

@@ -17,10 +17,20 @@ Uses Azure AI Language PII recognition service.
 - Returns entity categories
 
 ### Azure OpenAI (`azure_openai`)
-Uses LLM for context-aware PII detection.
-- More flexible and context-aware
-- Higher cost (token-based)
+Uses LLM for full context-aware PII redaction.
+- Most flexible and context-aware
+- Higher cost (token-based, large output)
 - Returns entity categories and token usage
+- Best for complex documents with varied PII patterns
+
+### Azure OpenAI Fast (`azure_openai_fast`)
+Uses LLM for entity extraction + Python replacement.
+- Speed and cost optimized (smaller output tokens)
+- Two-phase: LLM extracts PII list, Python replaces exact matches
+- Lower cost than full LLM redaction
+- May miss variations or context-sensitive patterns
+- Best for structured documents with consistent PII formats
+- Optional entity logging: creates `.ENTITIES.log` files showing extracted PII (disabled by default)
 
 ## Usage
 
@@ -35,13 +45,23 @@ config = RedactionConfig(
     language_api_key="..."
 )
 
-# Azure OpenAI strategy
+# Azure OpenAI strategy (full LLM redaction)
 config = RedactionConfig(
     strategy_type="azure_openai",
     language="en",
     openai_endpoint="https://...",
     openai_api_key="...",
     openai_deployment="gpt-4"
+)
+
+# Azure OpenAI Fast strategy (LLM extraction + Python replacement)
+config = RedactionConfig(
+    strategy_type="azure_openai_fast",
+    language="en",
+    openai_endpoint="https://...",
+    openai_api_key="...",
+    openai_deployment="gpt-4",
+    enable_entity_logging=True  # Optional: creates .ENTITIES.log files
 )
 
 # Use strategy
@@ -81,5 +101,6 @@ async with validator:
 - `config.py` - `RedactionConfig` and `ValidationConfig` dataclasses
 - `factory.py` - Factory for creating strategies
 - `azure_language.py` - Azure AI Language strategy implementation
-- `azure_openai.py` - Azure OpenAI LLM strategy implementation
+- `azure_openai.py` - Azure OpenAI full LLM redaction strategy
+- `azure_openai_fast.py` - Azure OpenAI fast extraction + replacement strategy
 - `validation.py` - LLM-based validation for redacted documents
