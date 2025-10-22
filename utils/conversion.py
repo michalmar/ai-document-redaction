@@ -1,6 +1,8 @@
 """Document conversion utilities using Azure Document Intelligence."""
 
 import logging
+import subprocess
+import shutil
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Tuple
@@ -69,6 +71,89 @@ async def _convert_document_inner(
     )
     
     return await poller.result()
+
+
+def convert_doc_to_docx(doc_path: str, output_dir: str) -> Tuple[bool, str, str]:
+    """
+    Convert a DOC file to DOCX using LibreOffice headless mode.
+    
+    Args:
+        doc_path: Path to input DOC file
+        output_dir: Directory where converted DOCX will be saved
+        
+    Returns:
+        Tuple of (success, docx_path, error_message)
+    """
+    try:
+        doc_file = Path(doc_path)
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Check if LibreOffice is available
+        soffice_cmd = shutil.which("soffice")
+        if not soffice_cmd:
+            # Try common paths on different platforms
+            common_paths = [
+                "/Applications/LibreOffice.app/Contents/MacOS/soffice",  # macOS
+                "/usr/bin/soffice",  # Linux
+                "C:\\Program Files\\LibreOffice\\program\\soffice.exe"  # Windows
+            ]
+            for path in common_paths:
+                if Path(path).exists():
+                    soffice_cmd = path
+                    break
+        
+        if not soffice_cmd:
+            error_msg = "LibreOffice (soffice) not found. Please install LibreOffice."
+            logger.error(error_msg)
+            return False, "", error_msg
+        
+        logger.debug(f"Converting DOC to DOCX: {doc_file.name}")
+        
+        # Run LibreOffice conversion
+        # --headless: run without GUI
+        # --convert-to docx: output format
+        # --outdir: output directory
+        result = subprocess.run(
+            [
+                soffice_cmd,
+                "--headless",
+                "--convert-to",
+                "docx",
+                "--outdir",
+                str(output_path),
+                str(doc_file)
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60  # 60 second timeout
+        )
+        
+        if result.returncode != 0:
+            error_msg = f"LibreOffice conversion failed: {result.stderr}"
+            logger.error(f"✗ DOC conversion failed: {doc_file.name} - {error_msg}")
+            return False, "", error_msg
+        
+        # Construct expected output path
+        docx_filename = doc_file.stem + ".docx"
+        docx_path = output_path / docx_filename
+        
+        if not docx_path.exists():
+            error_msg = "DOCX file not created by LibreOffice"
+            logger.error(f"✗ DOC conversion failed: {doc_file.name} - {error_msg}")
+            return False, "", error_msg
+        
+        logger.debug(f"✓ DOC converted to DOCX: {doc_file.name}")
+        return True, str(docx_path), ""
+        
+    except subprocess.TimeoutExpired:
+        error_msg = "LibreOffice conversion timed out (60s)"
+        logger.error(f"✗ DOC conversion failed: {Path(doc_path).name} - {error_msg}")
+        return False, "", error_msg
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"✗ DOC conversion failed: {Path(doc_path).name} - {error_msg}")
+        return False, "", error_msg
 
 
 async def convert_document(

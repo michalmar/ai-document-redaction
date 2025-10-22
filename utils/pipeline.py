@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict
 
 from .metrics import PipelineMetrics
-from .conversion import ConversionConfig, ConversionFactory, convert_document
+from .conversion import ConversionConfig, ConversionFactory, convert_document, convert_doc_to_docx
 from .redaction import RedactionConfig, ValidationConfig, create_redaction_strategy
 from .redaction.validation import DocumentValidator
 from .checkpoint import CheckpointManager
@@ -19,14 +19,17 @@ from .report import ReportConfig, ReportManager
 logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = (".pdf", ".docx", ".xlsx", ".pptx", ".jpg", ".jpeg", ".png", ".tiff", ".bmp")
+DOC_EXTENSION = ".doc"
 
 
-def collect_input_files(input_dir: str, supported_extensions: Tuple[str, ...] | None = None) -> Tuple[List[Tuple[Path, Path]], int, Dict[str, int], Dict[str, int]]:
+def collect_input_files(input_dir: str, supported_extensions: Tuple[str, ...] | None = None, include_doc: bool = True) -> Tuple[List[Tuple[Path, Path]], int, Dict[str, int], Dict[str, int]]:
     """
     Collect supported files from input directory.
     
     Args:
         input_dir: Input directory path
+        supported_extensions: Optional override for supported extensions
+        include_doc: Whether to include .doc files (they will be converted to .docx)
         
     Returns:
         Tuple of (supported_files, total_skipped, folder_total_counts, folder_unsupported_counts)
@@ -54,7 +57,12 @@ def collect_input_files(input_dir: str, supported_extensions: Tuple[str, ...] | 
         folder_total_counts[folder_name] = folder_total_counts.get(folder_name, 0) + 1
         # Allow caller to override supported extensions (used for redaction-only which expects .md files)
         exts = SUPPORTED_EXTENSIONS if supported_extensions is None else supported_extensions
+        
+        # Check if file is supported or is a .doc file (when include_doc is True)
         if file.suffix.lower() in exts:
+            input_file_tuples.append((file, relative_path))
+        elif include_doc and file.suffix.lower() == DOC_EXTENSION:
+            # Include .doc files - they will be converted to .docx before processing
             input_file_tuples.append((file, relative_path))
         else:
             skipped += 1
@@ -106,6 +114,32 @@ async def run_conversion_stage(
     logger.info("STAGE 1: Converting documents to Markdown")
     logger.info("="*70)
     
+    # Create temporary directory for DOC to DOCX conversions
+    doc_temp_dir = temp_dir.parent / ".temp_doc_conversion"
+    doc_temp_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Pre-process DOC files: convert to DOCX
+    processed_file_tuples = []
+    for file, relative_path in input_file_tuples:
+        if file.suffix.lower() == DOC_EXTENSION:
+            # Convert DOC to DOCX
+            logger.info(f"Converting DOC to DOCX: {relative_path}")
+            success, docx_path, error_msg = convert_doc_to_docx(str(file), str(doc_temp_dir))
+            
+            if success:
+                # Replace with converted DOCX path, keep original relative path
+                processed_file_tuples.append((Path(docx_path), relative_path))
+                metrics.doc_converted += 1
+            else:
+                # Log error and skip this file
+                logger.error(f"Failed to convert DOC file: {relative_path} - {error_msg}")
+                metrics.converted_failed += 1
+                if error_log_path is not None:
+                    _append_error_log(error_log_path, "doc_conversion", str(file.resolve()))
+        else:
+            # Keep as is for supported formats
+            processed_file_tuples.append((file, relative_path))
+    
     doc_client = ConversionFactory.create_client(conversion_config)
     
     # Track success per folder
@@ -116,10 +150,10 @@ async def run_conversion_stage(
     
     try:
         async with doc_client:
-            for i in range(0, len(input_file_tuples), batch_size):
-                batch = input_file_tuples[i:i + batch_size]
+            for i in range(0, len(processed_file_tuples), batch_size):
+                batch = processed_file_tuples[i:i + batch_size]
                 batch_num = i // batch_size + 1
-                total_batches = (len(input_file_tuples) + batch_size - 1) // batch_size
+                total_batches = (len(processed_file_tuples) + batch_size - 1) // batch_size
                 
                 logger.info(f"\nConversion batch {batch_num}/{total_batches} ({len(batch)} files)")
                 
@@ -171,6 +205,13 @@ async def run_conversion_stage(
         metrics.conversion_duration = time.time() - conversion_start
         logger.info(f"\nStage 1 complete: {metrics.converted_success} successful, "
                    f"{metrics.converted_failed} failed ({metrics.conversion_duration:.2f}s)")
+        
+        # Clean up temporary DOC conversion directory
+        try:
+            shutil.rmtree(doc_temp_dir, ignore_errors=True)
+        except Exception:
+            pass
+        
         return folder_stats, folder_timings
 
 
@@ -568,9 +609,9 @@ async def execute_pipeline(
     
     # Collect input files (returns all counts including unsupported)
     if stage == "redact":
-        input_file_tuples, skipped, folder_total_counts, folder_unsupported_counts = collect_input_files(input_dir, supported_extensions=(".md",))
+        input_file_tuples, skipped, folder_total_counts, folder_unsupported_counts = collect_input_files(input_dir, supported_extensions=(".md",), include_doc=False)
     else:
-        input_file_tuples, skipped, folder_total_counts, folder_unsupported_counts = collect_input_files(input_dir)
+        input_file_tuples, skipped, folder_total_counts, folder_unsupported_counts = collect_input_files(input_dir, include_doc=True)
     metrics.skipped_unsupported = skipped
     
     # Filter out files from completed folders

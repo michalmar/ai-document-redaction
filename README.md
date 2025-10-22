@@ -40,6 +40,7 @@ This design enables multiple redaction approaches, easy testing, and extensibili
 
 - PDF
 - Microsoft Word (`.docx`)
+- Microsoft Word Legacy (`.doc`) - automatically converted to `.docx` using LibreOffice
 - Microsoft Excel (`.xlsx`)
 - Microsoft PowerPoint (`.pptx`)
 - Images (`.jpg`, `.jpeg`, `.png`, `.tiff`, `.bmp`)
@@ -47,6 +48,7 @@ This design enables multiple redaction approaches, easy testing, and extensibili
 ## Prerequisites
 
 - Python 3.10 or higher
+- **LibreOffice** (required for DOC file conversion) - [Download here](https://www.libreoffice.org/download/download/)
 - Azure subscription with:
   - Azure Document Intelligence resource
   - Azure AI Language resource (for `azure_language` strategy)
@@ -319,6 +321,7 @@ ANONYMIZATION PIPELINE SUMMARY
 ======================================================================
 Total input files: 6
 Skipped (unsupported format): 0
+DOC files converted to DOCX: 2
 
 Stage 1 - Document Conversion:
   Successful: 6

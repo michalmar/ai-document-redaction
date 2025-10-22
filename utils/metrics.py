@@ -16,6 +16,7 @@ class PipelineMetrics:
     redacted_failed: int = 0
     skipped_unsupported: int = 0
     skipped_checkpoint: int = 0
+    doc_converted: int = 0  # Number of DOC files converted to DOCX
     total_pages: int = 0
     total_entities_redacted: int = 0
     conversion_duration: float = 0.0
@@ -61,6 +62,8 @@ class PipelineMetrics:
             logger.info(f"Skipped (unsupported format): {self.skipped_unsupported}")
         if self.skipped_checkpoint > 0:
             logger.info(f"Skipped (already processed): {self.skipped_checkpoint}")
+        if self.doc_converted > 0:
+            logger.info(f"DOC files converted to DOCX: {self.doc_converted}")
         logger.info("")
         logger.info("Stage 1 - Document Conversion:")
         logger.info(f"  Successful: {self.converted_success}")
