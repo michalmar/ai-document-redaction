@@ -29,9 +29,10 @@ Opportunistic simplifications are encouraged. When you see a refactor beyond the
 ### 3.3 Experiments & Troubleshooting
 When investigating complex issues:
 1. Prefer quick inline or REPL tests first.
-2. Use PowerShell friendly commands (Windows dev baseline).
-3. Load environment variables from `.env` when relevant.
-4. If a throwaway script is necessary, name it `adhoc_test_<purpose>.py` (see Section 7) and delete after insights are integrated.
+2. When using python scripts, make sure you are using right virtual environment - source it first.
+3. Use PowerShell friendly commands (Windows dev baseline).
+4. Load environment variables from `.env` when relevant.
+5. If a throwaway script is necessary, name it `adhoc_test_<purpose>.py` (see Section 7) and delete after insights are integrated.
 
 ### 3.4 Technology Stack
 * Primary backend language: **Python**, package & env management via `uv` (`pyproject.toml` authoritative; avoid `requirements.txt`).
