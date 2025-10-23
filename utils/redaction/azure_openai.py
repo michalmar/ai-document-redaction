@@ -24,13 +24,8 @@ PII entities include:
 - Physical addresses (cities, street addresses, cities with street numbers, postal codes)
 - National identification numbers (SSN, passport numbers, ID card numbers, etc.)
 - Financial information (credit card numbers, bank account numbers, IBAN)
-- Dates of birth
-- License plate numbers
-- Medical record numbers
 - IP addresses
-- URLs
 - Company registration numbers with personal context
-- Tax identification numbers
 
 IMPORTANT:
 1. Replace each PII entity with exactly "[REDACTED]"
