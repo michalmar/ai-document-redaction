@@ -28,6 +28,10 @@ PII entities include:
 - IP addresses
 - Company registration numbers with personal context
 
+PII entities are not (do not redact):
+- Tax identification numbers (IC, ICO)
+- URLs
+
 IMPORTANT:
 1. Return ONLY a valid JSON object with key "entities" containing an array of strings
 2. Each string should be an EXACT PII entity from the text (preserve exact spelling, spacing, capitalization)

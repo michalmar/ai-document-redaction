@@ -27,6 +27,10 @@ PII entities include:
 - IP addresses
 - Company registration numbers with personal context
 
+PII entities are not (do not redact):
+- Tax identification numbers (IC, ICO)
+- URLs
+
 IMPORTANT:
 1. Replace each PII entity with exactly "[REDACTED]"
 2. Preserve the document structure, formatting, and all non-PII content
