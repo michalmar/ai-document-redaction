@@ -27,10 +27,12 @@ PII entities include:
 - Financial information (credit card numbers, bank account numbers, IBAN)
 - IP addresses
 - Company registration numbers with personal context
+- Digital signatures (often just partly trasncribed - so make sure you don't miss any)
 
 PII entities are not (do not redact):
 - Tax identification numbers (IC, ICO)
 - URLs
+- prices, amounts (usually an amont money for offer, invoice, etc.)
 
 IMPORTANT:
 1. Return ONLY a valid JSON object with key "entities" containing an array of strings
