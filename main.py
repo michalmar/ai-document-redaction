@@ -22,6 +22,7 @@ from utils.conversion import ConversionConfig
 from utils.redaction import RedactionConfig, ValidationConfig
 from utils.pdf_export import PDFExportConfig
 from utils.report import ReportConfig
+from utils.filename_anonymizer import AnonymizationConfig, DetectionStrategy
 from utils.pipeline import execute_pipeline
 from utils.checkpoint import CheckpointManager
 from utils.storage.factory import create_storage_adapter
@@ -205,6 +206,37 @@ Environment variables required:
         help="Azure output container name or 'container/folder' path (required for azure_blob mode)"
     )
 
+    parser.add_argument(
+        "--no-anonymize-filenames",
+        dest="no_anonymize_filenames",
+        action="store_true",
+        help="Disable filename and folder PII anonymization (enabled by default)"
+    )
+
+    parser.add_argument(
+        "--filename-detection-strategy",
+        dest="filename_detection_strategy",
+        choices=["azure_language"],
+        default="azure_language",
+        help="PII detection strategy for filenames/folders (azure_language only)"
+    )
+
+    parser.add_argument(
+        "--filename-confidence-threshold",
+        dest="filename_confidence_threshold",
+        type=float,
+        default=0.8,
+        help="Confidence threshold for PII detection in filenames (0.0-1.0, default: 0.8)"
+    )
+
+    parser.add_argument(
+        "--filename-hash-length",
+        dest="filename_hash_length",
+        type=int,
+        default=8,
+        choices=[6, 8, 10, 12, 16],
+        help="Length of hash used for PII replacement (default: 8 chars)"
+    )
 
     
     args = parser.parse_args()
@@ -244,6 +276,11 @@ Environment variables required:
         logger.info(f"Redaction strategy: {args.redaction_strategy}")
         logger.info(f"Validation enabled: {args.validate}")
         logger.info(f"PDF export enabled: {args.export_pdf}")
+        logger.info(f"Filename anonymization: {not args.no_anonymize_filenames}")
+        if not args.no_anonymize_filenames:
+            logger.info(f"  Detection strategy: {args.filename_detection_strategy}")
+            logger.info(f"  Confidence threshold: {args.filename_confidence_threshold}")
+            logger.info(f"  Hash length: {args.filename_hash_length}")
         logger.info(f"Checkpoint enabled: {not args.no_checkpoint}")
         if args.clear_checkpoint:
             logger.info("Clear checkpoint: Yes (will reprocess all files)")
@@ -326,6 +363,19 @@ Environment variables required:
         report_config = ReportConfig(
             enabled=not args.no_report,
             output_file=args.report_file
+        )
+        
+        # Create filename anonymization config
+        anonymization_config = AnonymizationConfig(
+            enabled=not args.no_anonymize_filenames,
+            detection_strategy=DetectionStrategy.AZURE_LANGUAGE,
+            confidence_threshold=args.filename_confidence_threshold,
+            hash_length=args.filename_hash_length,
+            language=args.language,
+            preserve_extensions=True,
+            anonymize_all_folders=True,
+            language_endpoint=lang_endpoint,
+            language_api_key=lang_key
         )
         
         # Handle checkpoint clearing
@@ -412,9 +462,9 @@ Environment variables required:
             validation_config,
             pdf_config,
             report_config,
+            anonymization_config,
             args.batch_size,
-            enable_checkpoint=not args.no_checkpoint
-        ,
+            enable_checkpoint=not args.no_checkpoint,
             stage=args.stage
         ))
         

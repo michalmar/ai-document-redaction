@@ -33,6 +33,7 @@ PII entities are not (do not redact):
 - Tax identification numbers (IC, ICO)
 - URLs
 - prices, amounts (usually an amont money for offer, invoice, etc.)
+- name of projects or work or orders
 
 IMPORTANT:
 1. Return ONLY a valid JSON object with key "entities" containing an array of strings
@@ -164,10 +165,11 @@ class AzureOpenAIFastStrategy(RedactionStrategy):
             
             # Filter out empty chunks
             non_empty_chunks = [(idx, chunk) for idx, chunk in enumerate(chunks) if chunk.strip()]
-            logger.info(
-                f"Document {file_path} split into {len(chunks)} chunk(s), "
-                f"processing {len(non_empty_chunks)} non-empty chunk(s)."
-            )
+            if len(chunks) > 1:
+                logger.info(
+                    f"Document {file_path} split into {len(chunks)} chunk(s), "
+                    f"processing {len(non_empty_chunks)} non-empty chunk(s)."
+                )
             
             # Extract PII entities from all chunks
             all_entities = set()
