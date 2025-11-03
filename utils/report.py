@@ -100,7 +100,8 @@ class ReportManager:
         validation_success: int = 0,
         validation_failed: int = 0,
         pdf_export_success: int = 0,
-        pdf_export_failed: int = 0
+        pdf_export_failed: int = 0,
+        stage: str = "both"
     ):
         """
         Add a folder processing report.
@@ -119,6 +120,7 @@ class ReportManager:
             validation_failed: Number of failed validations
             pdf_export_success: Number of successful PDF exports
             pdf_export_failed: Number of failed PDF exports
+            stage: Pipeline stage that was run ("convert", "redact", or "both")
         """
         issue_count = (
             conversion_failed + 
@@ -128,7 +130,17 @@ class ReportManager:
         )
         
         supported_count = input_count - unsupported_count
-        processed_without_issues = issue_count == 0 and output_count == supported_count
+        
+        # Determine success based on which stage was run
+        if stage == "convert":
+            # For convert-only, success means all conversions succeeded
+            processed_without_issues = issue_count == 0 and conversion_success == supported_count
+        elif stage == "redact":
+            # For redact-only, success means all redactions succeeded
+            processed_without_issues = issue_count == 0 and redaction_success == supported_count
+        else:
+            # For "both", success means final output matches supported count
+            processed_without_issues = issue_count == 0 and output_count == supported_count
         
         report = FolderReport(
             timestamp=datetime.now().isoformat(),

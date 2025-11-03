@@ -618,6 +618,9 @@ async def execute_pipeline(
     metrics.skipped_unsupported = skipped
     
     # PRE-STAGE 0: Filename and Folder Anonymization
+    # Only run anonymization for "convert" or "both" stages
+    # For "redact" stage, just load existing mappings for reporting
+    folder_name_reverse_map = {}
     if anonymization_config and anonymization_config.enabled:
         # Pass storage adapter if using Azure Blob mode
         storage_adapter_for_mappings = storage_adapter_out if use_azure_blob else None
@@ -629,89 +632,107 @@ async def execute_pipeline(
         
         try:
             async with anonymizer:
-                logger.info("="*70)
-                logger.info("PRE-STAGE 0: Filename & Folder Anonymization (Partial Replacement)")
-                logger.info("="*70)
-                logger.info(f"Detection strategy: {anonymization_config.detection_strategy.value}")
-                logger.info(f"Confidence threshold: {anonymization_config.confidence_threshold}")
-                logger.info(f"Hash length: {anonymization_config.hash_length} characters")
-                if use_azure_blob:
-                    logger.info(f"Storage mode: Azure Blob Storage")
-                logger.info("")
-                
-                # Load existing entity cache if available
-                if use_azure_blob:
-                    # Load from blob storage
-                    await anonymizer.load_entity_cache_from_blob(prefix=output_prefix)
-                else:
-                    # Load from local filesystem
-                    anonymizer.load_entity_cache()
-                
-                # Step 1: Anonymize folder names
-                logger.info("Step 1: Anonymizing folders...")
-                input_file_tuples, folder_mappings = await anonymizer.anonymize_folders(
-                    input_file_tuples
-                )
-                folder_pii_count = sum(1 for m in folder_mappings if m["contained_pii"])
-                logger.info(f"  Anonymized {folder_pii_count} folders with PII (out of {len(folder_mappings)} total)")
-                logger.info("")
-                
-                # Build reverse mapping: anonymized_folder -> original_folder
-                # This is needed for reporting to show original names
-                folder_name_reverse_map = {
-                    m["anonymized_folder"]: m["original_folder"]
-                    for m in folder_mappings
-                }
-                
-                # Update folder_total_counts and folder_unsupported_counts to use anonymized names as keys
-                # But keep values mapped correctly
-                updated_folder_total_counts = {}
-                updated_folder_unsupported_counts = {}
-                for original_name, count in folder_total_counts.items():
-                    # Find the anonymized name for this original name
-                    anonymized_name = original_name  # default to original
-                    for m in folder_mappings:
-                        if m["original_folder"] == original_name:
-                            anonymized_name = m["anonymized_folder"]
-                            break
-                    updated_folder_total_counts[anonymized_name] = count
-                
-                for original_name, count in folder_unsupported_counts.items():
-                    anonymized_name = original_name  # default to original
-                    for m in folder_mappings:
-                        if m["original_folder"] == original_name:
-                            anonymized_name = m["anonymized_folder"]
-                            break
-                    updated_folder_unsupported_counts[anonymized_name] = count
-                
-                # Replace the old dictionaries with updated ones
-                folder_total_counts = updated_folder_total_counts
-                folder_unsupported_counts = updated_folder_unsupported_counts
-                
-                # Step 2: Anonymize filenames
-                logger.info("Step 2: Anonymizing filenames...")
-                input_file_tuples, filename_mappings = await anonymizer.anonymize_filenames(
-                    input_file_tuples
-                )
-                file_pii_count = sum(1 for m in filename_mappings if m["contained_pii"])
-                logger.info(f"  Anonymized {file_pii_count} filenames with PII (out of {len(filename_mappings)} total)")
-                logger.info("")
-                
-                # Step 3: Save mappings
-                if use_azure_blob:
-                    # Save to blob storage
-                    await anonymizer.save_mappings_to_blob(
-                        filename_mappings, 
-                        folder_mappings,
-                        prefix=output_prefix
+                if stage in ("convert", "both"):
+                    # Run full anonymization for convert/both stages
+                    logger.info("="*70)
+                    logger.info("PRE-STAGE 0: Filename & Folder Anonymization (Partial Replacement)")
+                    logger.info("="*70)
+                    logger.info(f"Detection strategy: {anonymization_config.detection_strategy.value}")
+                    logger.info(f"Confidence threshold: {anonymization_config.confidence_threshold}")
+                    logger.info(f"Hash length: {anonymization_config.hash_length} characters")
+                    if use_azure_blob:
+                        logger.info(f"Storage mode: Azure Blob Storage")
+                    logger.info("")
+                    
+                    # Load existing entity cache if available
+                    if use_azure_blob:
+                        # Load from blob storage
+                        await anonymizer.load_entity_cache_from_blob(prefix=output_prefix)
+                    else:
+                        # Load from local filesystem
+                        anonymizer.load_entity_cache()
+                    
+                    # Step 1: Anonymize folder names
+                    logger.info("Step 1: Anonymizing folders...")
+                    input_file_tuples, folder_mappings = await anonymizer.anonymize_folders(
+                        input_file_tuples
                     )
-                else:
-                    # Save to local filesystem
-                    anonymizer.save_mappings(filename_mappings, folder_mappings)
+                    folder_pii_count = sum(1 for m in folder_mappings if m["contained_pii"])
+                    logger.info(f"  Anonymized {folder_pii_count} folders with PII (out of {len(folder_mappings)} total)")
+                    logger.info("")
+                    
+                    # Build reverse mapping: anonymized_folder -> original_folder
+                    # This is needed for reporting to show original names
+                    folder_name_reverse_map = {
+                        m["anonymized_folder"]: m["original_folder"]
+                        for m in folder_mappings
+                    }
+                    
+                    # Update folder_total_counts and folder_unsupported_counts to use anonymized names as keys
+                    # But keep values mapped correctly
+                    updated_folder_total_counts = {}
+                    updated_folder_unsupported_counts = {}
+                    for original_name, count in folder_total_counts.items():
+                        # Find the anonymized name for this original name
+                        anonymized_name = original_name  # default to original
+                        for m in folder_mappings:
+                            if m["original_folder"] == original_name:
+                                anonymized_name = m["anonymized_folder"]
+                                break
+                        updated_folder_total_counts[anonymized_name] = count
+                    
+                    for original_name, count in folder_unsupported_counts.items():
+                        anonymized_name = original_name  # default to original
+                        for m in folder_mappings:
+                            if m["original_folder"] == original_name:
+                                anonymized_name = m["anonymized_folder"]
+                                break
+                        updated_folder_unsupported_counts[anonymized_name] = count
+                    
+                    # Replace the old dictionaries with updated ones
+                    folder_total_counts = updated_folder_total_counts
+                    folder_unsupported_counts = updated_folder_unsupported_counts
+                    
+                    # Step 2: Anonymize filenames
+                    logger.info("Step 2: Anonymizing filenames...")
+                    input_file_tuples, filename_mappings = await anonymizer.anonymize_filenames(
+                        input_file_tuples
+                    )
+                    file_pii_count = sum(1 for m in filename_mappings if m["contained_pii"])
+                    logger.info(f"  Anonymized {file_pii_count} filenames with PII (out of {len(filename_mappings)} total)")
+                    logger.info("")
+                    
+                    # Step 3: Save mappings
+                    if use_azure_blob:
+                        # Save to blob storage
+                        await anonymizer.save_mappings_to_blob(
+                            filename_mappings, 
+                            folder_mappings,
+                            prefix=output_prefix
+                        )
+                    else:
+                        # Save to local filesystem
+                        anonymizer.save_mappings(filename_mappings, folder_mappings)
+                    
+                    logger.info("")
+                    logger.info(f"Pre-Stage 0 complete")
+                    logger.info("")
                 
-                logger.info("")
-                logger.info(f"Pre-Stage 0 complete")
-                logger.info("")
+                elif stage == "redact":
+                    # For redact-only stage, just load existing mappings for reporting
+                    logger.info("Loading existing folder mappings for reporting...")
+                    mapping_path = Path(output_dir) / ".mappings" / "folder_mapping.json"
+                    if mapping_path.exists():
+                        import json
+                        with open(mapping_path, 'r', encoding='utf-8') as f:
+                            folder_mappings = json.load(f)
+                            folder_name_reverse_map = {
+                                m["anonymized_folder"]: m["original_folder"]
+                                for m in folder_mappings
+                            }
+                            logger.info(f"Loaded {len(folder_mappings)} folder mappings")
+                    else:
+                        logger.debug("No existing folder mappings found")
                 
         except Exception as e:
             logger.error(f"Filename anonymization failed: {e}")
@@ -854,7 +875,8 @@ async def execute_pipeline(
                 conversion_success=conv_stats.get("success", 0),
                 conversion_failed=conv_stats.get("total", 0) - conv_stats.get("success", 0),
                 redaction_success=red_stats.get("success", 0),
-                redaction_failed=red_stats.get("total", 0) - red_stats.get("success", 0)
+                redaction_failed=red_stats.get("total", 0) - red_stats.get("success", 0),
+                stage=stage
             )
         
         # Print summary table and write CSV report
