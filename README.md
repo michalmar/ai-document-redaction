@@ -222,32 +222,6 @@ output/
 
 See `utils/redaction/README.md` for detailed strategy comparison.
 
-### Individual Components
-
-#### Document Conversion Only
-
-Convert documents to Markdown without PII redaction:
-
-```bash
-# Single file
-python convert-azure-di.py document.pdf -o output.md
-
-# Batch processing
-python convert-azure-di.py --batch-dir ./documents --output-dir ./markdown
-```
-
-#### PII Redaction Only
-
-Redact PII from existing Markdown files:
-
-```bash
-# Single file
-python redact-document-pii.py document.md -o redacted.md
-
-# Batch processing with Czech language
-python redact-document-pii.py --batch-dir ./markdown --output-dir ./redacted --language cs
-```
-
 ## Pipeline Architecture
 
 The orchestration pipeline uses a modular design with **Strategy pattern** for flexible redaction methods.
@@ -429,48 +403,6 @@ The PII redaction supports multiple languages. Common language codes:
 
 Refer to [Azure AI Language documentation](https://learn.microsoft.com/en-us/azure/ai-services/language-service/personally-identifiable-information/language-support) for the complete list.
 
-## Project Structure
-
-```
-.
-├── main.py                    # Pipeline entry point and CLI
-├── utils/                     # Modular utility modules
-│   ├── __init__.py           # Package marker
-│   ├── conversion.py         # Document conversion (ConversionFactory)
-│   ├── redaction/            # PII redaction strategies
-│   │   ├── __init__.py      # Public API
-│   │   ├── base.py          # RedactionStrategy abstract base
-│   │   ├── config.py        # Configuration dataclasses
-│   │   ├── factory.py       # Strategy factory
-│   │   ├── azure_language.py    # Azure Language strategy
-│   │   ├── azure_openai.py      # Azure OpenAI full LLM redaction
-│   │   ├── azure_openai_fast.py # Azure OpenAI fast extraction + replacement
-│   │   ├── validation.py        # LLM-based validation
-│   │   └── README.md        # Strategy documentation
-│   ├── pipeline.py           # Pipeline orchestration logic
-│   ├── checkpoint.py         # Checkpoint management for incremental processing
-│   ├── metrics.py            # Performance metrics tracking
-│   ├── pdf_export.py         # PDF export functionality
-│   ├── report.py             # CSV reporting and folder-level tracking
-│   └── retry.py              # Resilient retry logic
-├── convert-azure-di.py       # Standalone conversion script (legacy)
-├── redact-document-pii.py    # Standalone redaction script (legacy)
-├── tests/                    # Test suite
-│   └── test_checkpoint.py   # Checkpoint functionality tests
-├── docs/                     # Documentation
-│   ├── CheckpointFeature.md # Checkpoint feature documentation
-│   ├── PDFExportFeature.md  # PDF export feature documentation
-│   ├── ReportingFeature.md  # CSV reporting feature documentation
-│   ├── ImplementationLog_Checkpoint.md  # Implementation details
-│   ├── ImplementationSummary_StrategyPattern.md
-│   └── QuickReference_Strategies.md
-├── .env                      # Environment variables (not in repo)
-├── README.md                 # This file
-├── AGENTS.md                 # Development guidelines
-├── inp/                      # Example: input documents
-└── anonymized/               # Example: final output directory
-```
-
 ## Development
 
 This project follows guidelines outlined in `AGENTS.md`. Key principles:
@@ -499,4 +431,24 @@ This project follows guidelines outlined in `AGENTS.md`. Key principles:
 
 ## License
 
-See project license file for details.
+MIT License
+
+Copyright (c) Microsoft Corporation.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
