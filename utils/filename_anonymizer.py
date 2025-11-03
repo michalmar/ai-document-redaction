@@ -220,7 +220,6 @@ class FilenameAnonymizer:
         """
         if not texts:
             return []
-            return []
         
         # Require client for actual detection
         if not self.client:
@@ -229,75 +228,85 @@ class FilenameAnonymizer:
                 "Provide language_endpoint and language_api_key in config."
             )
         
-        # Prepare documents for batch processing
-        documents = [
-            TextDocumentInput(id=str(i), text=text)
-            for i, text in enumerate(texts)
-        ]
+        # Azure Language API has a limit of 5 documents per batch
+        BATCH_SIZE = 5
+        all_results = []
         
-        # Call Azure Language PII detection with retry
-        success, response, error_msg = await retry_with_backoff(
-            self._detect_pii_batch_inner,
-            documents,
-            self.client,
-            self.config.language
-        )
-        
-        if not success:
-            logger.error(f"PII detection failed: {error_msg}")
-            # Return empty results on failure
-            return [
-                DetectionResult(
-                    original_text=text,
-                    contains_pii=False,
-                    entities=[],
-                    confidence=0.0
-                )
-                for text in texts
-            ]
-        
-        # Process results
-        results = []
-        for i, text in enumerate(texts):
-            doc_result = next((doc for doc in response if int(doc.id) == i), None)
+        # Process in batches
+        for batch_start in range(0, len(texts), BATCH_SIZE):
+            batch_end = min(batch_start + BATCH_SIZE, len(texts))
+            batch_texts = texts[batch_start:batch_end]
             
-            if doc_result and not doc_result.is_error:
-                # Filter entities by confidence threshold and exclude PersonType category
-                filtered_entities = [
-                    PIIEntity(
-                        text=entity.text,
-                        category=entity.category,
-                        confidence=entity.confidence_score,
-                        offset=entity.offset,
-                        length=entity.length
+            # Prepare documents for batch processing
+            documents = [
+                TextDocumentInput(id=str(batch_start + i), text=text)
+                for i, text in enumerate(batch_texts)
+            ]
+            
+            # Call Azure Language PII detection with retry
+            success, response, error_msg = await retry_with_backoff(
+                self._detect_pii_batch_inner,
+                documents,
+                self.client,
+                self.config.language
+            )
+            
+            if not success:
+                logger.error(f"PII detection failed for batch {batch_start}-{batch_end}: {error_msg}")
+                # Return empty results on failure for this batch
+                batch_results = [
+                    DetectionResult(
+                        original_text=text,
+                        contains_pii=False,
+                        entities=[],
+                        confidence=0.0
                     )
-                    for entity in doc_result.entities
-                    if entity.confidence_score >= self.config.confidence_threshold
-                    and entity.category != "PersonType"
+                    for text in batch_texts
                 ]
-
+                all_results.extend(batch_results)
+                continue
+            
+            # Process results for this batch
+            for i, text in enumerate(batch_texts):
+                global_idx = batch_start + i
+                doc_result = next((doc for doc in response if int(doc.id) == global_idx), None)
                 
-                # Remove overlapping entities (keep longest)
-                non_overlapping = self._remove_overlapping_entities(filtered_entities)
-                
-                results.append(DetectionResult(
-                    original_text=text,
-                    contains_pii=len(non_overlapping) > 0,
-                    entities=non_overlapping,
-                    confidence=max([e.confidence for e in non_overlapping]) if non_overlapping else 0.0
-                ))
-            else:
-                # Handle error case
-                error_msg = doc_result.error.message if doc_result and doc_result.is_error else "Unknown error"
-                logger.warning(f"PII detection failed for text '{text}': {error_msg}")
-                results.append(DetectionResult(
-                    original_text=text,
-                    contains_pii=False,
-                    entities=[],
-                    confidence=0.0
-                ))
+                if doc_result and not doc_result.is_error:
+                    # Filter entities by confidence threshold and exclude PersonType category
+                    filtered_entities = [
+                        PIIEntity(
+                            text=entity.text,
+                            category=entity.category,
+                            confidence=entity.confidence_score,
+                            offset=entity.offset,
+                            length=entity.length
+                        )
+                        for entity in doc_result.entities
+                        if entity.confidence_score >= self.config.confidence_threshold
+                        and entity.category != "PersonType"
+                    ]
+                    
+                    # Remove overlapping entities (keep longest)
+                    non_overlapping = self._remove_overlapping_entities(filtered_entities)
+                    
+                    all_results.append(DetectionResult(
+                        original_text=text,
+                        contains_pii=len(non_overlapping) > 0,
+                        entities=non_overlapping,
+                        confidence=max([e.confidence for e in non_overlapping]) if non_overlapping else 0.0
+                    ))
+                else:
+                    # Handle error case
+                    error_msg = doc_result.error.message if doc_result and doc_result.is_error else "Unknown error"
+                    logger.warning(f"PII detection failed for text '{text}': {error_msg}")
+                    all_results.append(DetectionResult(
+                        original_text=text,
+                        contains_pii=False,
+                        entities=[],
+                        confidence=0.0
+                    ))
         
-        return results
+        return all_results
     
     @staticmethod
     async def _detect_pii_batch_inner(documents, client, language):
